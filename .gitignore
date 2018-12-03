@@ -1,0 +1,7 @@
+*.ini
+*.csv
+*.png
+*.PNG
+*.jpg
+visuals/*
+/visuals/*
