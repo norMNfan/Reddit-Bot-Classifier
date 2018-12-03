@@ -1,6 +1,6 @@
 # Reddit-Bot-Classifier
 
-This is the code I used for my Reddit Bot Classifer
+This is the code I used for my Reddit Bot Classifer report.
 
 ### classifier.py
 
