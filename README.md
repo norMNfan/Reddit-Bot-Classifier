@@ -1,11 +1,19 @@
 # Reddit-Bot-Classifier
 
-This is the code I used for my Reddit Bot Classifer report.
+This project classifies accounts on Reddit as bots or regular users.
 
-### classifier.py
+I originally created this project for an independent study project during my last semester of University but since then have adapted it to be used by others.
 
-This file does all of the Reddit user classification and also has functions to create all of the visualization found in my report.
+There are two main files used in this project:
 
 ### user_scraper.py
 
-This file scrape data from Reddit and inserts it into a mongdo db. To use this code you must have set up a mongo db in your local environment.
+This file is used to scrape user data from reddit and insert it into mongo db.
+
+
+### classifier.py
+
+This file performs all of the classification algorithms and creates all of the visualizations for the data.
+
+## How to use this project
+
