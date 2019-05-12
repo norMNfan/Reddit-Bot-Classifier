@@ -1,26 +1,21 @@
-import nltk, string, pymongo, csv, time, re, datetime
+import pymongo
+import time
+import datetime
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import Counter
-from scipy import sparse
-from collections import Counter
-from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
-from sklearn import svm
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix, average_precision_score, classification_report
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.pipeline import Pipeline
-from sklearn.utils.fixes import signature
-from yellowbrick.text import TSNEVisualizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-
+from sklearn.naive_bayes import GaussianNB
 import scattertext as st
-import spacy
-from pprint import pprint
+
+X_comments, Y_comments, X_posts, Y_posts = [], [], [], []
+X_comments_sub, X_posts_sub, Y_comments_sub, Y_posts_sub = [], [], [], []
 
 # Classifies the documents and prints the results
 def classify(X, Y, stem=True):
@@ -75,7 +70,11 @@ def classify_user(X, Y, X_user, Y_user):
 		return
 
 	# Create pipeline: word vectorizer => create tfidf model => Run NB classifier
-	text_clf = Pipeline([('vect', CountVectorizer()), ('tfidf', TfidfTransformer()), ('clf', ExtraTreesClassifier(n_estimators=10, max_depth=None, min_samples_split=2, random_state=0)),])
+	text_clf = Pipeline([
+		('vect', CountVectorizer()),
+		('tfidf', TfidfTransformer()),
+		('clf', ExtraTreesClassifier(n_estimators=10, max_depth=None, min_samples_split=2, random_state=0))
+	])
 
 	# Train model
 	text_clf.fit(X, Y)
@@ -93,17 +92,11 @@ def classify_user(X, Y, X_user, Y_user):
 # Starting point of classifying a user
 def classify_user(username):
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
 	X_comments, Y_comments, X_posts, Y_posts = [], [], [], []
 	X_comments_sub, X_posts_sub, Y_comments_sub, Y_posts_sub = [], [], [], []
 
 	# Get data from database
-	for doc in collection.find({}):
+	for doc in get_redditor_collection().find({}):
 		if doc['username'] != username:
 			X_comments_sub_obj = ''
 			X_posts_sub_obj = ''
@@ -142,7 +135,7 @@ def classify_user(username):
 	X_comments_user, Y_comments_user, X_posts_user, Y_posts_user, X_comments_sub_user, X_posts_sub_user = [], [], [], [], [], []
 
 	# Get data from database
-	for doc in collection.find({'username':username}):
+	for doc in get_redditor_collection().find({'username':username}):
 		X_comments_sub_obj = ''
 		X_posts_sub_obj = ''
 
@@ -210,40 +203,18 @@ def classify_user(username):
 # Starting point of classifying all the documents
 def classify_all():
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
 	X_comments, Y_comments, X_posts, Y_posts = [], [], [], []
 	X_comments_sub, X_posts_sub, Y_comments_sub, Y_posts_sub = [], [], [], []
 
 	# Get data from database
-	for doc in collection.find({}):
-		X_comments_sub_obj = ''
-		X_posts_sub_obj = ''
+	for doc in get_redditor_collection().find({}):
 
+		# Skip is account contains no comment and no posts
 		if len(doc['comments']) < 1 and len(doc['posts']) < 1:
 			continue
 
-		# Add comment data
-		for comment in doc['comments']:
-			X_comments_sub_obj = X_comments_sub_obj + comment['subreddit'] + ' '
-			X_comments.append(comment['body'])
-			if doc['is_bot']:
-				Y_comments.append(1)
-			else:
-				Y_comments.append(0)
-
-		# Add post data
-		for post in doc['posts']:
-			X_posts_sub_obj = X_posts_sub_obj + post['subreddit'] + ' '
-			X_posts.append(post['title'])
-			if doc['is_bot']:
-				Y_posts.append(1)
-			else:
-				Y_posts.append(0)
+		X_comments_sub_obj = get_comment_subreddit_data(X_comments, Y_comments, doc)
+		X_posts_sub_obj = get_post_subreddit_data(X_posts, Y_posts, doc)
 
 		# Add subreddit data
 		X_comments_sub.append(X_comments_sub_obj)
@@ -288,20 +259,36 @@ def classify_all():
 	classify(X_comments, Y_comments)
 	print('------------------------------------------------------------')
 
+
+def get_post_subreddit_data(X_posts, Y_posts, doc):
+	X_posts_sub_obj = ''
+	for post in doc['posts']:
+		X_posts_sub_obj = X_posts_sub_obj + post['subreddit'] + ' '
+		X_posts.append(post['title'])
+		if doc['is_bot']:
+			Y_posts.append(1)
+		else:
+			Y_posts.append(0)
+	return X_posts_sub_obj
+
+
+def get_comment_subreddit_data(X_comments, Y_comments, doc):
+	X_comments_sub_obj = ''
+	for comment in doc['comments']:
+		X_comments_sub_obj = X_comments_sub_obj + comment['subreddit'] + ' '
+		X_comments.append(comment['body'])
+		if doc['is_bot']:
+			Y_comments.append(1)
+		else:
+			Y_comments.append(0)
+	return X_comments_sub_obj
+
+
 # Creates the interactive visualization
 def create_visualizations():
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
-	X_comments, Y_comments, X_posts, Y_posts = [], [], [], []
-	X_comments_sub, X_posts_sub, Y_comments_sub, Y_posts_sub = [], [], [], []
-
 	# Get data from database
-	for doc in collection.find({}):
+	for doc in get_redditor_collection().find({}):
 		X_comments_sub_obj = ''
 		X_posts_sub_obj = ''
 
@@ -387,16 +374,10 @@ def create_metric_graphs(X_comments, Y_comments, X_posts, Y_posts):
 # Create histogram of cake day distributions
 def create_cake_day_histogram():
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
 	bot_cake_days, normal_cake_days = [], []
 
 	# Get data from database
-	for doc in collection.find({}):
+	for doc in get_redditor_collection().find({}):
 		if doc['is_bot']:
 			t = (datetime.datetime.fromtimestamp(doc['cake_day']),)
 			bot_cake_days.append(t)
@@ -431,16 +412,10 @@ def create_cake_day_histogram():
 # Create histogram of time of day of comments
 def create_comment_histogram():
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
 	bot_comments, normal_comments = [], []
 
 	# Get data from database
-	for doc in collection.find({}):
+	for doc in get_redditor_collection().find({}):
 		if doc['is_bot']:
 			for comment in doc['comments']:
 				t = (datetime.datetime.fromtimestamp(comment['created_utc']),)
@@ -457,6 +432,15 @@ def create_comment_histogram():
 
 	visualize(df_bots, title='bot users')
 	visualize(df_normal, title='normal users')
+
+
+def get_redditor_collection():
+	client = pymongo.MongoClient('mongodb://localhost:27017')
+	db = client['redditors']
+	collection = db['redditors']
+	client.close()
+	return collection
+
 
 # Creates histogram of a dataframe
 def visualize(df, column_name='date', color='#494949', title=''):
@@ -484,16 +468,10 @@ def visualize(df, column_name='date', color='#494949', title=''):
 # Classify coments based on dates (unsuccessful)
 def classify_comment_dates():
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
 	X, Y = [], []
 
 	# Get data from database
-	for doc in collection.find({}):
+	for doc in get_redditor_collection().find({}):
 		if doc['is_bot']:
 			for comment in doc['posts']:
 				X.append(comment['created_utc'])
@@ -523,16 +501,10 @@ def classify_comment_dates():
 # Create histogram of comment karma
 def avg_comment_account():
 
-	# Read reddit users from db
-	client = pymongo.MongoClient('mongodb://localhost:27017')
-	db = client['redditors']
-	collection = db['redditors']
-	client.close()
-
 	bot_comments, normal_comments = [], []
 
 	# Get data from database
-	for doc in collection.find({}):
+	for doc in get_redditor_collection().find({}):
 		if doc['is_bot']:
 			if len(doc['comments']) > 0:
 				t = (len(doc['comments']),)
