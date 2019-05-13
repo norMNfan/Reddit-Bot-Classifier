@@ -25,7 +25,7 @@ This file performs all of the classification algorithms and creates all of the v
 Step by step guide [here](https://github.com/reddit-archive/reddit/wiki/OAuth2)
 
 ### 4. Create a [praw.ini](https://praw.readthedocs.io/en/latest/getting_started/configuration/prawini.html) file with your reddit account credentials
-Pu the praw.ini file in your main directory. It should look something like this:
+Put the praw.ini file in your main directory. It should look something like this:
 
 [bot1]
 
@@ -39,4 +39,4 @@ username=XXXXXXXXXX
 
 ### 5. Run the user_scraper.py
 
-### 6. Run the classifier_all() in classifier.py
+### 6. Run the classifier_all() function in classifier.py
